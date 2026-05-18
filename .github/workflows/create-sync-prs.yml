@@ -1,9 +1,8 @@
-name: Create sync PRs after master update
+name: Auto-create chain PRs
 
 on:
   push:
-    branches:
-      - master
+    branches: [master, pre]
 
 jobs:
   create-prs:
@@ -12,38 +11,26 @@ jobs:
       pull-requests: write
       contents: read
     steps:
-      - name: Create master → pre PR
+      - name: Create downstream PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          gh pr create \
-            --repo ${{ github.repository }} \
-            --base pre \
-            --head master \
-            --title "🔀 master → pre" \
-            --body "Auto-created after master update (${{ github.sha }})" \
-            || echo "PR already exists or no changes"
+          case "$BRANCH" in
+            master)
+              targets=("master:pre:🔀 master → pre" "master:develop:⏪ master → develop (back-merge)")
+              ;;
+            pre)
+              targets=("pre:prod:🚀 pre → prod")
+              ;;
+          esac
 
-      - name: Create pre → prod PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr create \
-            --repo ${{ github.repository }} \
-            --base prod \
-            --head pre \
-            --title "🚀 pre → prod" \
-            --body "Auto-created after master update (${{ github.sha }})" \
-            || echo "PR already exists or no changes"
-
-      - name: Create master → develop back-merge PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr create \
-            --repo ${{ github.repository }} \
-            --base develop \
-            --head master \
-            --title "⏪ master → develop (back-merge)" \
-            --body "Auto-created back-merge after master update (${{ github.sha }})" \
-            || echo "PR already exists or no changes"
+          for t in "${targets[@]}"; do
+            IFS=":" read -r head base title <<< "$t"
+            echo "→ Creating PR: $head → $base"
+            gh pr create --repo "$GITHUB_REPOSITORY" \
+              --base "$base" --head "$head" \
+              --title "$title" \
+              --body "Auto-created after $head update ($GITHUB_SHA)" \
+              || echo "  Skipped (PR exists or no diff)"
+          done
