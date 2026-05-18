@@ -1,0 +1,49 @@
+name: Create sync PRs after master update
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  create-prs:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Create master → pre PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --repo ${{ github.repository }} \
+            --base pre \
+            --head master \
+            --title "🔀 master → pre" \
+            --body "Auto-created after master update (${{ github.sha }})" \
+            || echo "PR already exists or no changes"
+
+      - name: Create pre → prod PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --repo ${{ github.repository }} \
+            --base prod \
+            --head pre \
+            --title "🚀 pre → prod" \
+            --body "Auto-created after master update (${{ github.sha }})" \
+            || echo "PR already exists or no changes"
+
+      - name: Create master → develop back-merge PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --repo ${{ github.repository }} \
+            --base develop \
+            --head master \
+            --title "⏪ master → develop (back-merge)" \
+            --body "Auto-created back-merge after master update (${{ github.sha }})" \
+            || echo "PR already exists or no changes"
